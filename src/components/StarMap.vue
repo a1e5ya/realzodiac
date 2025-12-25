@@ -28,7 +28,14 @@
       ref="canvas"
       :width="canvasSize.width"
       :height="canvasSize.height"
-      class="w-full h-full"
+      class="w-full h-full cursor-grab active:cursor-grabbing"
+      @mousedown="handleDragStart"
+      @mousemove="handleDragMove"
+      @mouseup="handleDragEnd"
+      @mouseleave="handleDragEnd"
+      @touchstart="handleTouchStart"
+      @touchmove="handleTouchMove"
+      @touchend="handleDragEnd"
     />
 
     <!-- Stats Overlay (Debug) -->
@@ -66,8 +73,23 @@ const props = defineProps({
   showEarth: {
     type: Boolean,
     default: true
+  },
+  showOphiuchus: {
+    type: Boolean,
+    default: false
+  },
+  viewMode: {
+    type: String,
+    default: 'simple'
   }
 })
+
+const emit = defineEmits(['update:date'])
+
+// Touch/drag interaction state
+const isDragging = ref(false)
+const dragStartX = ref(0)
+const dragStartDate = ref(null)
 
 // Star data
 const { stars, constellations, loading, error, loadData } = useStarData()
@@ -308,6 +330,13 @@ const draw = () => {
     ctx.beginPath()
     ctx.arc(projected.x, projected.y, size, 0, Math.PI * 2)
     ctx.fill()
+    
+    // Draw star names in full mode for bright stars
+    if (props.viewMode === 'full' && mag < 2.0 && star.properties.name) {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'
+      ctx.font = '10px sans-serif'
+      ctx.fillText(star.properties.name, projected.x + 8, projected.y - 8)
+    }
   })
 
   // Draw constellation lines (zodiac only)
@@ -319,13 +348,21 @@ const draw = () => {
       
       let strokeColor, lineWidth
       
-      if (isCurrent) {
+      // Ophiuchus visibility controlled by toggle
+      if (isOphiuchus && !props.showOphiuchus) {
+        // When toggle is OFF, always show Ophiuchus as dim gray
+        strokeColor = 'rgba(148, 163, 184, 0.2)'
+        lineWidth = 0.8
+      } else if (isCurrent) {
+        // Highlight current constellation
         strokeColor = isOphiuchus ? '#a855f7' : '#fbbf24'
         lineWidth = 2.5
       } else if (isOphiuchus) {
+        // Non-current Ophiuchus when toggle is ON
         strokeColor = 'rgba(168, 85, 247, 0.4)'
         lineWidth = 1
       } else {
+        // All other constellations
         strokeColor = 'rgba(148, 163, 184, 0.2)'
         lineWidth = 0.8
       }
@@ -361,6 +398,29 @@ const draw = () => {
         ctx.stroke()
       })
     })
+  
+  // Draw constellation names in full mode
+  if (props.viewMode === 'full') {
+    constellations.value.features
+      .filter(c => zodiacIds.includes(c.id))
+      .forEach(constellation => {
+        const isCurrent = constellation.id === currentConst
+        
+        // Get center of constellation (approximate)
+        const firstLine = constellation.geometry.coordinates[0]
+        if (firstLine && firstLine.length > 0) {
+          const [ra, dec] = firstLine[0]
+          const projected = project(ra, dec, sunRA, width, height)
+          
+          if (projected.visible) {
+            ctx.fillStyle = isCurrent ? 'rgba(251, 191, 36, 0.9)' : 'rgba(148, 163, 184, 0.5)'
+            ctx.font = isCurrent ? 'bold 14px sans-serif' : '12px sans-serif'
+            ctx.textAlign = 'center'
+            ctx.fillText(constellationNames[constellation.id], projected.x, projected.y - 20)
+          }
+        }
+      })
+  }
 
   // Draw EARTH (huge circle, only top edge visible as horizon)
   if (props.showEarth) {
@@ -430,8 +490,31 @@ const draw = () => {
   
   const moonPos = project(moonRA, moonDec, sunRA, width, height)
   
-  if (moonPos.visible && moonPos.x >= 0 && moonPos.x <= width && 
-      moonPos.y >= 0 && moonPos.y <= height) {
+  // Check if moon should be visible (not below Earth when Earth is shown)
+  let moonVisible = moonPos.visible && moonPos.x >= 0 && moonPos.x <= width && 
+                    moonPos.y >= 0 && moonPos.y <= height
+  
+  // Hide moon if it's below Earth horizon
+  if (props.showEarth && moonVisible) {
+    const altitude = getSolarAltitude(props.date, props.location.lat, props.location.lon)
+    const azimuth = getSolarAzimuth(props.date, props.location.lat, props.location.lon)
+    const earthRadius = Math.min(width, height) * 3
+    const verticalOffset = earthRadius * (1 + altitude / 90)
+    const azimuthRad = (azimuth - 180) * Math.PI / 180
+    const horizontalOffset = Math.sin(azimuthRad) * earthRadius * 0.3
+    const earthX = centerX + horizontalOffset
+    const earthY = centerY + verticalOffset
+    
+    // Check if moon is inside Earth circle
+    const distToEarth = Math.sqrt(
+      Math.pow(moonPos.x - earthX, 2) + Math.pow(moonPos.y - earthY, 2)
+    )
+    if (distToEarth < earthRadius) {
+      moonVisible = false
+    }
+  }
+  
+  if (moonVisible) {
     const moonPhase = getMoonPhase(props.date)
     const moonSize = 8
     
@@ -507,6 +590,55 @@ const handleResize = () => {
 // Reload data on error
 const reloadData = () => {
   loadData()
+}
+
+// Touch/Drag interaction handlers
+const handleDragStart = (event) => {
+  isDragging.value = true
+  dragStartX.value = event.clientX
+  dragStartDate.value = new Date(props.date)
+}
+
+const handleTouchStart = (event) => {
+  if (event.touches.length === 1) {
+    isDragging.value = true
+    dragStartX.value = event.touches[0].clientX
+    dragStartDate.value = new Date(props.date)
+  }
+}
+
+const handleDragMove = (event) => {
+  if (!isDragging.value || !dragStartDate.value) return
+  
+  const deltaX = event.clientX - dragStartX.value
+  // Each 50px = 1 day
+  // Negative deltaX (drag right) = go to past (subtract days)
+  const daysDelta = Math.floor(-deltaX / 50)
+  
+  if (daysDelta !== 0) {
+    const newDate = new Date(dragStartDate.value)
+    newDate.setDate(newDate.getDate() + daysDelta)
+    emit('update:date', newDate)
+  }
+}
+
+const handleTouchMove = (event) => {
+  if (!isDragging.value || !dragStartDate.value || event.touches.length !== 1) return
+  
+  const deltaX = event.touches[0].clientX - dragStartX.value
+  const daysDelta = Math.floor(-deltaX / 50)
+  
+  if (daysDelta !== 0) {
+    const newDate = new Date(dragStartDate.value)
+    newDate.setDate(newDate.getDate() + daysDelta)
+    emit('update:date', newDate)
+  }
+}
+
+const handleDragEnd = () => {
+  isDragging.value = false
+  dragStartX.value = 0
+  dragStartDate.value = null
 }
 
 onMounted(() => {
