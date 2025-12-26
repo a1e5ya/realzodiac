@@ -101,6 +101,28 @@ const canvasSize = ref({ width: 800, height: 800 })
 // Zodiac constellations (the 13)
 const zodiacIds = ['Ari', 'Tau', 'Gem', 'Cnc', 'Leo', 'Vir', 'Lib', 'Sco', 'Oph', 'Sgr', 'Cap', 'Aqr', 'Psc']
 
+// Element colors for zodiac signs
+const elementColors = {
+  // Fire signs
+  'Ari': { start: '#ef4444', end: '#f97316' },
+  'Leo': { start: '#f97316', end: '#fbbf24' },
+  'Sgr': { start: '#fbbf24', end: '#ef4444' },
+  // Earth signs
+  'Tau': { start: '#84cc16', end: '#22c55e' },
+  'Vir': { start: '#22c55e', end: '#10b981' },
+  'Cap': { start: '#10b981', end: '#84cc16' },
+  // Air signs
+  'Gem': { start: '#06b6d4', end: '#0ea5e9' },
+  'Lib': { start: '#0ea5e9', end: '#3b82f6' },
+  'Aqr': { start: '#3b82f6', end: '#06b6d4' },
+  // Water signs
+  'Cnc': { start: '#8b5cf6', end: '#a78bfa' },
+  'Sco': { start: '#a78bfa', end: '#c084fc' },
+  'Psc': { start: '#c084fc', end: '#8b5cf6' },
+  // Ophiuchus
+  'Oph': { start: '#a855f7', end: '#d946ef' }
+}
+
 const zodiacCount = computed(() => {
   if (!constellations.value) return 0
   return constellations.value.features.filter(c => zodiacIds.includes(c.id)).length
@@ -108,7 +130,14 @@ const zodiacCount = computed(() => {
 
 const currentConstellation = computed(() => {
   const sunRA = getSunRA(props.date)
-  return getCurrentConstellation(sunRA)
+  const constellation = getCurrentConstellation(sunRA)
+  
+  // If Ophiuchus toggle is OFF and result is Ophiuchus, return Scorpio instead
+  if (constellation === 'Oph' && !props.showOphiuchus) {
+    return 'Sco'
+  }
+  
+  return constellation
 })
 
 const solarAltitude = computed(() => {
@@ -147,92 +176,63 @@ defineExpose({
 // Sun position (simplified calculation)
 const getSunRA = (date) => {
   const dayOfYear = Math.floor((date - new Date(date.getFullYear(), 0, 0)) / 86400000)
-  // Sun moves ~1° per day along ecliptic
-  // March 21 (day 80) ≈ RA 0° (Vernal Equinox)
   const ra = ((dayOfYear - 80) * 0.9856) % 360
   return ra > 180 ? ra - 360 : ra
 }
 
-// Calculate solar altitude (how high Sun is above horizon)
+// Calculate solar altitude
 const getSolarAltitude = (date, latitude, longitude) => {
-  // Day of year
   const dayOfYear = Math.floor((date - new Date(date.getFullYear(), 0, 0)) / 86400000)
-  
-  // Solar declination (how far north/south Sun is)
   const declination = 23.45 * Math.sin((360 / 365) * (dayOfYear - 81) * Math.PI / 180)
-  
-  // Hour angle (Sun's position in sky based on time of day)
-  const hours = date.getHours() + date.getMinutes() / 60 + date.getSeconds() / 3600
-  const hourAngle = (hours - 12) * 15 // 15° per hour, noon = 0°
-  
-  // Convert to radians
-  const latRad = latitude * Math.PI / 180
-  const decRad = declination * Math.PI / 180
-  const haRad = hourAngle * Math.PI / 180
-  
-  // Calculate altitude
-  const sinAlt = Math.sin(latRad) * Math.sin(decRad) + 
-                 Math.cos(latRad) * Math.cos(decRad) * Math.cos(haRad)
-  
-  const altitude = Math.asin(sinAlt) * 180 / Math.PI
-  
-  return altitude
-}
-
-// Calculate solar azimuth (compass direction where Sun is)
-const getSolarAzimuth = (date, latitude, longitude) => {
-  // Day of year
-  const dayOfYear = Math.floor((date - new Date(date.getFullYear(), 0, 0)) / 86400000)
-  
-  // Solar declination
-  const declination = 23.45 * Math.sin((360 / 365) * (dayOfYear - 81) * Math.PI / 180)
-  
-  // Hour angle
   const hours = date.getHours() + date.getMinutes() / 60 + date.getSeconds() / 3600
   const hourAngle = (hours - 12) * 15
   
-  // Convert to radians
   const latRad = latitude * Math.PI / 180
   const decRad = declination * Math.PI / 180
   const haRad = hourAngle * Math.PI / 180
   
-  // Calculate altitude (needed for azimuth)
+  const sinAlt = Math.sin(latRad) * Math.sin(decRad) + 
+                 Math.cos(latRad) * Math.cos(decRad) * Math.cos(haRad)
+  
+  return Math.asin(sinAlt) * 180 / Math.PI
+}
+
+// Calculate solar azimuth
+const getSolarAzimuth = (date, latitude, longitude) => {
+  const dayOfYear = Math.floor((date - new Date(date.getFullYear(), 0, 0)) / 86400000)
+  const declination = 23.45 * Math.sin((360 / 365) * (dayOfYear - 81) * Math.PI / 180)
+  const hours = date.getHours() + date.getMinutes() / 60 + date.getSeconds() / 3600
+  const hourAngle = (hours - 12) * 15
+  
+  const latRad = latitude * Math.PI / 180
+  const decRad = declination * Math.PI / 180
+  const haRad = hourAngle * Math.PI / 180
+  
   const sinAlt = Math.sin(latRad) * Math.sin(decRad) + 
                  Math.cos(latRad) * Math.cos(decRad) * Math.cos(haRad)
   const altitude = Math.asin(sinAlt)
   
-  // Calculate azimuth using atan2 (more robust than acos)
   const sinAz = Math.cos(decRad) * Math.sin(haRad) / Math.cos(altitude)
   const cosAz = (Math.sin(decRad) - Math.sin(latRad) * Math.sin(altitude)) / 
                 (Math.cos(latRad) * Math.cos(altitude))
   
   let azimuth = Math.atan2(sinAz, cosAz) * 180 / Math.PI
-  
-  // Normalize to 0-360
   if (azimuth < 0) azimuth += 360
   
   return azimuth
 }
 
-// FIXED: Moon position calculation
+// Moon position
 const getMoonRA = (date) => {
-  // Known new moon: Jan 6, 2000, 18:14 UTC
   const knownNewMoon = new Date(2000, 0, 6, 18, 14, 0).getTime()
   const daysSinceKnownNewMoon = (date.getTime() - knownNewMoon) / 86400000
-  
-  // Synodic month (time between new moons)
   const synodicMonth = 29.53058867
   const daysSinceNewMoon = daysSinceKnownNewMoon % synodicMonth
-  
-  // Moon moves 360° in 27.32 days (sidereal month) relative to stars
-  // But appears to move 360° in 29.53 days relative to Sun (synodic month)
-  // So relative to Sun: 360° / 29.53 days = 12.19° per day
   const moonOffset = daysSinceNewMoon * 12.19
   
   const sunRA = getSunRA(date)
   let moonRA = sunRA + moonOffset
   
-  // Normalize to 0-360 first, then to -180 to 180
   moonRA = moonRA % 360
   if (moonRA > 180) moonRA -= 360
   if (moonRA < -180) moonRA += 360
@@ -240,60 +240,54 @@ const getMoonRA = (date) => {
   return moonRA
 }
 
-// Moon phase calculation
+// Moon phase
 const getMoonPhase = (date) => {
   const knownNewMoon = new Date(2000, 0, 6, 18, 14, 0).getTime()
   const daysSinceKnownNewMoon = (date.getTime() - knownNewMoon) / 86400000
   const daysSinceNewMoon = daysSinceKnownNewMoon % 29.53058867
-  return daysSinceNewMoon / 29.53058867 // 0 = new moon, 0.5 = full moon
+  return daysSinceNewMoon / 29.53058867
 }
 
 // Detect which zodiac constellation the Sun is in
 const getCurrentConstellation = (sunRA) => {
-  // Approximate RA ranges for zodiac constellations (in degrees)
-  const zodiacRanges = {
-    'Psc': { start: -30, end: 30 },     // Pisces
-    'Ari': { start: 30, end: 55 },      // Aries
-    'Tau': { start: 55, end: 90 },      // Taurus
-    'Gem': { start: 90, end: 120 },     // Gemini
-    'Cnc': { start: 120, end: 140 },    // Cancer
-    'Leo': { start: 140, end: 175 },    // Leo
-    'Vir': { start: 175, end: 220 },    // Virgo (large)
-    'Lib': { start: 220, end: 243 },    // Libra
-    'Sco': { start: 243, end: 250 },    // Scorpio (small)
-    'Oph': { start: 250, end: 268 },    // Ophiuchus
-    'Sgr': { start: 268, end: 300 },    // Sagittarius
-    'Cap': { start: 300, end: 328 },    // Capricorn
-    'Aqr': { start: 328, end: 360 }     // Aquarius
-  }
-
-  // Normalize sunRA to 0-360
   let normalizedRA = sunRA
   if (normalizedRA < 0) normalizedRA += 360
 
-  for (const [id, range] of Object.entries(zodiacRanges)) {
-    if (range.start === -30) { // Pisces wraps around
-      if (normalizedRA >= 330 || normalizedRA <= 30) return id
-    } else if (normalizedRA >= range.start && normalizedRA < range.end) {
-      return id
+  const zodiacRanges = {
+    'Psc1': { start: 0, end: 30, id: 'Psc' },    // Pisces part 1 (beginning)
+    'Ari': { start: 30, end: 50, id: 'Ari' },
+    'Tau': { start: 50, end: 90, id: 'Tau' },
+    'Gem': { start: 90, end: 120, id: 'Gem' },
+    'Cnc': { start: 120, end: 140, id: 'Cnc' },
+    'Leo': { start: 140, end: 177, id: 'Leo' },
+    'Vir': { start: 177, end: 220, id: 'Vir' },
+    'Lib': { start: 220, end: 243, id: 'Lib' },
+    'Sco': { start: 243, end: 250, id: 'Sco' },
+    'Oph': { start: 250, end: 268, id: 'Oph' },
+    'Sgr': { start: 268, end: 300, id: 'Sgr' },
+    'Cap': { start: 300, end: 328, id: 'Cap' },
+    'Aqr': { start: 328, end: 350, id: 'Aqr' },  // Feb 16 - Mar 11
+    'Psc2': { start: 350, end: 360, id: 'Psc' }   // Pisces part 2 (end)
+  }
+
+  for (const [key, range] of Object.entries(zodiacRanges)) {
+    if (normalizedRA >= range.start && normalizedRA < range.end) {
+      return range.id
     }
   }
 
   return null
 }
 
-// Projection: Celestial coords (RA, Dec) → Screen (x, y)
+// Projection
 const project = (ra, dec, sunRA, width, height) => {
-  // Adjust RA relative to Sun (Sun stays at center)
   let adjustedRA = ra - sunRA
   
-  // Wrap around seamlessly
   if (adjustedRA > 180) adjustedRA -= 360
   if (adjustedRA < -180) adjustedRA += 360
   
-  // Closer zoom (bigger scale)
   const scale = Math.min(width, height) / 120
-  const x = width / 2 + adjustedRA * scale
+  const x = width / 2 - adjustedRA * scale
   const y = height / 2 - dec * scale
   
   return { x, y, visible: Math.abs(adjustedRA) < 100 }
@@ -306,7 +300,7 @@ const draw = () => {
   const ctx = canvas.value.getContext('2d')
   const { width, height } = canvasSize.value
   const sunRA = getSunRA(props.date)
-  const currentConst = getCurrentConstellation(sunRA)
+  const currentConst = currentConstellation.value
   const altitude = getSolarAltitude(props.date, props.location.lat, props.location.lon)
 
   // Clear canvas
@@ -331,7 +325,6 @@ const draw = () => {
     ctx.arc(projected.x, projected.y, size, 0, Math.PI * 2)
     ctx.fill()
     
-    // Draw star names in full mode for bright stars
     if (props.viewMode === 'full' && mag < 2.0 && star.properties.name) {
       ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'
       ctx.font = '10px sans-serif'
@@ -339,38 +332,37 @@ const draw = () => {
     }
   })
 
-  // Draw constellation lines (zodiac only)
+  // Draw constellation lines
   constellations.value.features
     .filter(c => zodiacIds.includes(c.id))
     .forEach(constellation => {
       const isOphiuchus = constellation.id === 'Oph'
       const isCurrent = constellation.id === currentConst
       
-      let strokeColor, lineWidth
-      
-      // Ophiuchus visibility controlled by toggle
-      if (isOphiuchus && !props.showOphiuchus) {
-        // When toggle is OFF, always show Ophiuchus as dim gray
-        strokeColor = 'rgba(148, 163, 184, 0.2)'
-        lineWidth = 0.8
-      } else if (isCurrent) {
-        // Highlight current constellation
-        strokeColor = isOphiuchus ? '#a855f7' : '#fbbf24'
-        lineWidth = 2.5
-      } else if (isOphiuchus) {
-        // Non-current Ophiuchus when toggle is ON
-        strokeColor = 'rgba(168, 85, 247, 0.4)'
-        lineWidth = 1
-      } else {
-        // All other constellations
-        strokeColor = 'rgba(148, 163, 184, 0.2)'
-        lineWidth = 0.8
-      }
-      
-      ctx.strokeStyle = strokeColor
-      ctx.lineWidth = lineWidth
-
       constellation.geometry.coordinates.forEach(lineString => {
+        // Ophiuchus when toggle is OFF
+        if (isOphiuchus && !props.showOphiuchus) {
+          ctx.strokeStyle = 'rgba(148, 163, 184, 0.3)'
+          ctx.lineWidth = 1.2
+          ctx.shadowBlur = 0
+        } else if (isCurrent) {
+          // Highlighted - use solid start color (no gradient to avoid issues)
+          const colors = elementColors[constellation.id]
+          ctx.strokeStyle = colors.start
+          ctx.lineWidth = 2.5
+          ctx.shadowColor = colors.start
+          ctx.shadowBlur = 8
+        } else if (isOphiuchus) {
+          ctx.strokeStyle = 'rgba(168, 85, 247, 0.4)'
+          ctx.lineWidth = 1.2
+          ctx.shadowBlur = 0
+        } else {
+          // Bolder non-highlighted lines
+          ctx.strokeStyle = 'rgba(148, 163, 184, 0.4)'
+          ctx.lineWidth = 1.2
+          ctx.shadowBlur = 0
+        }
+
         ctx.beginPath()
         
         let prevPoint = null
@@ -396,17 +388,17 @@ const draw = () => {
         })
 
         ctx.stroke()
+        ctx.shadowBlur = 0
       })
     })
   
-  // Draw constellation names in full mode
+  // Draw constellation names
   if (props.viewMode === 'full') {
     constellations.value.features
       .filter(c => zodiacIds.includes(c.id))
       .forEach(constellation => {
         const isCurrent = constellation.id === currentConst
         
-        // Get center of constellation (approximate)
         const firstLine = constellation.geometry.coordinates[0]
         if (firstLine && firstLine.length > 0) {
           const [ra, dec] = firstLine[0]
@@ -422,51 +414,34 @@ const draw = () => {
       })
   }
 
-  // Draw EARTH (huge circle, only top edge visible as horizon)
+  // Draw EARTH
   if (props.showEarth) {
     const centerX = width / 2
     const centerY = height / 2
     
-    const altitude = getSolarAltitude(props.date, props.location.lat, props.location.lon)
-    const azimuth = getSolarAzimuth(props.date, props.location.lat, props.location.lon)
-    
-    // Huge Earth radius (center is way below screen)
     const earthRadius = Math.min(width, height) * 3
-    
-    // Earth center position based on altitude and azimuth
-    // Altitude: how far down the center is (higher sun = center further down)
-    // Azimuth: horizontal position (where sun is in the sky)
-    
-    // Vertical offset (altitude) - FLIPPED
-    // altitude = 90° → verticalOffset LOW (Earth below, invisible)
-    // altitude = 0° → verticalOffset at center (horizon visible)
-    // altitude = -90° → verticalOffset HIGH (Earth above, covering sun)
-    const verticalOffset = earthRadius * (1 + altitude / 90)  // FLIPPED: was (1 - altitude/90)
-    
-    // Horizontal offset (azimuth)
+    const verticalOffset = earthRadius * (1 + altitude / 90)
+    const azimuth = getSolarAzimuth(props.date, props.location.lat, props.location.lon)
     const azimuthRad = (azimuth - 180) * Math.PI / 180
     const horizontalOffset = Math.sin(azimuthRad) * earthRadius * 0.3
     
     const earthX = centerX + horizontalOffset
     const earthY = centerY + verticalOffset
     
-    // Draw Earth
-    ctx.fillStyle = 'rgba(251, 191, 36, 0.5)' // Yellow, 50% opacity
+    ctx.fillStyle = 'rgba(251, 191, 36, 0.5)'
     ctx.beginPath()
     ctx.arc(earthX, earthY, earthRadius, 0, Math.PI * 2)
     ctx.fill()
     
-    // Earth outline (horizon line)
     ctx.strokeStyle = 'rgba(251, 191, 36, 0.9)'
     ctx.lineWidth = 3
     ctx.stroke()
   }
 
-  // Draw Sun at center
+  // Draw Sun
   const centerX = width / 2
   const centerY = height / 2
 
-  // Sun glow
   const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, 30)
   gradient.addColorStop(0, 'rgba(251, 191, 36, 0.8)')
   gradient.addColorStop(0.5, 'rgba(251, 191, 36, 0.4)')
@@ -476,13 +451,12 @@ const draw = () => {
   ctx.arc(centerX, centerY, 30, 0, Math.PI * 2)
   ctx.fill()
 
-  // Sun core
   ctx.fillStyle = '#fbbf24'
   ctx.beginPath()
   ctx.arc(centerX, centerY, 12, 0, Math.PI * 2)
   ctx.fill()
 
-  // Draw Moon (FIXED)
+  // Draw Moon
   const moonRA = getMoonRA(props.date)
   const dayOfYear = Math.floor((props.date - new Date(props.date.getFullYear(), 0, 0)) / 86400000)
   const eclipticTilt = 23.45 * Math.sin((360 / 365) * (dayOfYear - 81) * Math.PI / 180)
@@ -490,22 +464,18 @@ const draw = () => {
   
   const moonPos = project(moonRA, moonDec, sunRA, width, height)
   
-  // Check if moon should be visible (not below Earth when Earth is shown)
   let moonVisible = moonPos.visible && moonPos.x >= 0 && moonPos.x <= width && 
                     moonPos.y >= 0 && moonPos.y <= height
   
-  // Hide moon if it's below Earth horizon
   if (props.showEarth && moonVisible) {
-    const altitude = getSolarAltitude(props.date, props.location.lat, props.location.lon)
-    const azimuth = getSolarAzimuth(props.date, props.location.lat, props.location.lon)
     const earthRadius = Math.min(width, height) * 3
     const verticalOffset = earthRadius * (1 + altitude / 90)
+    const azimuth = getSolarAzimuth(props.date, props.location.lat, props.location.lon)
     const azimuthRad = (azimuth - 180) * Math.PI / 180
     const horizontalOffset = Math.sin(azimuthRad) * earthRadius * 0.3
     const earthX = centerX + horizontalOffset
     const earthY = centerY + verticalOffset
     
-    // Check if moon is inside Earth circle
     const distToEarth = Math.sqrt(
       Math.pow(moonPos.x - earthX, 2) + Math.pow(moonPos.y - earthY, 2)
     )
@@ -518,7 +488,6 @@ const draw = () => {
     const moonPhase = getMoonPhase(props.date)
     const moonSize = 8
     
-    // Moon glow
     const moonGlow = ctx.createRadialGradient(
       moonPos.x, moonPos.y, 0,
       moonPos.x, moonPos.y, moonSize * 2
@@ -530,13 +499,11 @@ const draw = () => {
     ctx.arc(moonPos.x, moonPos.y, moonSize * 2, 0, Math.PI * 2)
     ctx.fill()
     
-    // Moon body
     ctx.fillStyle = '#e2e8f0'
     ctx.beginPath()
     ctx.arc(moonPos.x, moonPos.y, moonSize, 0, Math.PI * 2)
     ctx.fill()
     
-    // Moon shadow (phase)
     if (moonPhase < 0.45 || moonPhase > 0.55) {
       const shadowOffset = (moonPhase - 0.5) * moonSize * 2
       
@@ -552,26 +519,13 @@ const draw = () => {
   }
 }
 
-// Redraw on date change
-watch(() => props.date, () => {
-  draw()
-}, { immediate: false })
-
-// Redraw on location change
-watch(() => props.location, () => {
-  draw()
-}, { deep: true })
-
-// Redraw on showEarth change
-watch(() => props.showEarth, () => {
-  draw()
-})
-
-// Redraw when data loads
+// Redraw on changes
+watch(() => props.date, () => draw(), { immediate: false })
+watch(() => props.location, () => draw(), { deep: true })
+watch(() => props.showEarth, () => draw())
+watch(() => props.showOphiuchus, () => draw())
 watch([stars, constellations], () => {
-  if (stars.value && constellations.value) {
-    draw()
-  }
+  if (stars.value && constellations.value) draw()
 })
 
 // Handle resize
@@ -583,16 +537,14 @@ const handleResize = () => {
   const height = container.clientHeight
   
   canvasSize.value = { width, height }
-  
   setTimeout(() => draw(), 0)
 }
 
-// Reload data on error
 const reloadData = () => {
   loadData()
 }
 
-// Touch/Drag interaction handlers
+// Touch/Drag handlers
 const handleDragStart = (event) => {
   isDragging.value = true
   dragStartX.value = event.clientX
@@ -611,9 +563,7 @@ const handleDragMove = (event) => {
   if (!isDragging.value || !dragStartDate.value) return
   
   const deltaX = event.clientX - dragStartX.value
-  // Each 50px = 1 day
-  // Negative deltaX (drag right) = go to past (subtract days)
-  const daysDelta = Math.floor(-deltaX / 50)
+  const daysDelta = Math.floor(deltaX / 50)
   
   if (daysDelta !== 0) {
     const newDate = new Date(dragStartDate.value)
@@ -626,7 +576,7 @@ const handleTouchMove = (event) => {
   if (!isDragging.value || !dragStartDate.value || event.touches.length !== 1) return
   
   const deltaX = event.touches[0].clientX - dragStartX.value
-  const daysDelta = Math.floor(-deltaX / 50)
+  const daysDelta = Math.floor(deltaX / 50)
   
   if (daysDelta !== 0) {
     const newDate = new Date(dragStartDate.value)
