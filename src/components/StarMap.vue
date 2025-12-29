@@ -98,29 +98,32 @@ const { stars, constellations, loading, error, loadData } = useStarData()
 const canvas = ref(null)
 const canvasSize = ref({ width: 800, height: 800 })
 
+// Animation frame
+const shimmerOffset = ref(0)
+
 // Zodiac constellations (the 13)
 const zodiacIds = ['Ari', 'Tau', 'Gem', 'Cnc', 'Leo', 'Vir', 'Lib', 'Sco', 'Oph', 'Sgr', 'Cap', 'Aqr', 'Psc']
 
-// Element colors for zodiac signs
+// Element colors for zodiac signs (very pale with strong glow)
 const elementColors = {
   // Fire signs
-  'Ari': { start: '#ef4444', end: '#f97316' },
-  'Leo': { start: '#f97316', end: '#fbbf24' },
-  'Sgr': { start: '#fbbf24', end: '#ef4444' },
+  'Ari': { color: 'rgba(248, 113, 113, 0.3)', glow: 'rgba(248, 113, 113, 0.8)' },
+  'Leo': { color: 'rgba(251, 146, 60, 0.3)', glow: 'rgba(251, 146, 60, 0.8)' },
+  'Sgr': { color: 'rgba(251, 191, 36, 0.3)', glow: 'rgba(251, 191, 36, 0.8)' },
   // Earth signs
-  'Tau': { start: '#84cc16', end: '#22c55e' },
-  'Vir': { start: '#22c55e', end: '#10b981' },
-  'Cap': { start: '#10b981', end: '#84cc16' },
+  'Tau': { color: 'rgba(163, 230, 53, 0.3)', glow: 'rgba(163, 230, 53, 0.8)' },
+  'Vir': { color: 'rgba(74, 222, 128, 0.3)', glow: 'rgba(74, 222, 128, 0.8)' },
+  'Cap': { color: 'rgba(52, 211, 153, 0.3)', glow: 'rgba(52, 211, 153, 0.8)' },
   // Air signs
-  'Gem': { start: '#06b6d4', end: '#0ea5e9' },
-  'Lib': { start: '#0ea5e9', end: '#3b82f6' },
-  'Aqr': { start: '#3b82f6', end: '#06b6d4' },
+  'Gem': { color: 'rgba(34, 211, 238, 0.3)', glow: 'rgba(34, 211, 238, 0.8)' },
+  'Lib': { color: 'rgba(56, 189, 248, 0.3)', glow: 'rgba(56, 189, 248, 0.8)' },
+  'Aqr': { color: 'rgba(96, 165, 250, 0.3)', glow: 'rgba(96, 165, 250, 0.8)' },
   // Water signs
-  'Cnc': { start: '#8b5cf6', end: '#a78bfa' },
-  'Sco': { start: '#a78bfa', end: '#c084fc' },
-  'Psc': { start: '#c084fc', end: '#8b5cf6' },
+  'Cnc': { color: 'rgba(167, 139, 250, 0.3)', glow: 'rgba(167, 139, 250, 0.8)' },
+  'Sco': { color: 'rgba(192, 132, 252, 0.3)', glow: 'rgba(192, 132, 252, 0.8)' },
+  'Psc': { color: 'rgba(216, 180, 254, 0.3)', glow: 'rgba(216, 180, 254, 0.8)' },
   // Ophiuchus
-  'Oph': { start: '#a855f7', end: '#d946ef' }
+  'Oph': { color: 'rgba(192, 132, 252, 0.3)', glow: 'rgba(192, 132, 252, 0.8)' }
 }
 
 const zodiacCount = computed(() => {
@@ -293,6 +296,129 @@ const project = (ra, dec, sunRA, width, height) => {
   return { x, y, visible: Math.abs(adjustedRA) < 100 }
 }
 
+// Smooth diamond-like 4-pointed star (thin rays)
+const drawStarShape4 = (ctx, x, y, size, rotation = 0) => {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rotation);
+  
+  ctx.beginPath();
+  
+  for (let i = 0; i < 4; i++) {
+    const angle = (i * Math.PI) / 2;
+    const nextAngle = ((i + 1) * Math.PI) / 2;
+    
+    const tipX = Math.cos(angle) * size;
+    const tipY = Math.sin(angle) * size;
+    const nextTipX = Math.cos(nextAngle) * size;
+    const nextTipY = Math.sin(nextAngle) * size;
+    
+    if (i === 0) {
+      ctx.moveTo(tipX, tipY);
+    }
+    
+    const midAngle = angle + Math.PI / 4;
+    const curveDepth = size * 0.10;
+    const cpX = Math.cos(midAngle) * curveDepth;
+    const cpY = Math.sin(midAngle) * curveDepth;
+    
+    ctx.quadraticCurveTo(cpX, cpY, nextTipX, nextTipY);
+  }
+  
+  ctx.closePath();
+  ctx.fill();
+  ctx.fill(); // Double fill to hide lines
+  
+  ctx.restore();
+}
+
+// Smooth 8-pointed star (thin rays)
+const drawStarShape8 = (ctx, x, y, size, rotation = 0) => {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rotation);
+  
+  ctx.beginPath();
+  
+  for (let i = 0; i < 8; i++) {
+    const angle = (i * Math.PI) / 4;
+    const nextAngle = ((i + 1) * Math.PI) / 4;
+    
+    const rayLength = (i % 2 === 0) ? size : size * 0.6;
+    const nextRayLength = ((i + 1) % 2 === 0) ? size : size * 0.6;
+    
+    const tipX = Math.cos(angle) * rayLength;
+    const tipY = Math.sin(angle) * rayLength;
+    const nextTipX = Math.cos(nextAngle) * nextRayLength;
+    const nextTipY = Math.sin(nextAngle) * nextRayLength;
+    
+    if (i === 0) {
+      ctx.moveTo(tipX, tipY);
+    }
+    
+    const midAngle = angle + Math.PI / 8;
+    const curveDepth = size * 0.12;
+    const cpX = Math.cos(midAngle) * curveDepth;
+    const cpY = Math.sin(midAngle) * curveDepth;
+    
+    ctx.quadraticCurveTo(cpX, cpY, nextTipX, nextTipY);
+  }
+  
+  ctx.closePath();
+  ctx.fill();
+  ctx.fill(); // Double fill to hide lines
+  
+  ctx.restore();
+}
+
+// Check if a star is near constellation lines
+// Get the stars that should be shown for constellation
+const getConstellationStars = (constellationId) => {
+  if (!constellations.value || !stars.value) return new Set()
+  
+  const constellation = constellations.value.features.find(c => c.id === constellationId)
+  if (!constellation) return new Set()
+  
+  const selectedStars = new Set()
+  
+  // Get all unique line endpoints
+  const endpoints = []
+  constellation.geometry.coordinates.forEach(lineString => {
+    lineString.forEach(([ra, dec]) => {
+      endpoints.push({ ra, dec })
+    })
+  })
+  
+  // For each endpoint, find the closest star
+  endpoints.forEach(endpoint => {
+    let closestStar = null
+    let closestDistance = Infinity
+    
+    stars.value.features.forEach(star => {
+      const [starRA, starDec] = star.geometry.coordinates
+      const raDistance = Math.abs(starRA - endpoint.ra)
+      const decDistance = Math.abs(starDec - endpoint.dec)
+      const distance = Math.sqrt(raDistance * raDistance + decDistance * decDistance)
+      
+      // Only consider stars within 2 degrees
+      if (distance < 2 && distance < closestDistance) {
+        closestDistance = distance
+        closestStar = star
+      }
+    })
+    
+    if (closestStar) {
+      selectedStars.add(closestStar)
+    }
+  })
+  
+  return selectedStars
+}
+
+const isStarInConstellation = (star, constellationId, constellationStarsCache) => {
+  return constellationStarsCache.has(star)
+}
+
 // Draw the star map
 const draw = () => {
   if (!canvas.value || !stars.value || !constellations.value) return
@@ -302,6 +428,9 @@ const draw = () => {
   const sunRA = getSunRA(props.date)
   const currentConst = currentConstellation.value
   const altitude = getSolarAltitude(props.date, props.location.lat, props.location.lon)
+
+  // Get constellation stars (max ~10 brightest)
+  const constellationStarsCache = currentConst ? getConstellationStars(currentConst) : new Set()
 
   // Clear canvas
   ctx.fillStyle = '#000000'
@@ -317,13 +446,63 @@ const draw = () => {
     if (projected.y < -50 || projected.y > height + 50) return
 
     const mag = star.properties.mag
-    const size = Math.max(0.5, 2 - mag / 3)
+    
+    // Check if this star is in current highlighted constellation
+    const isInCurrentConstellation = isStarInConstellation(star, currentConst, constellationStarsCache)
+    
+    // Size based on magnitude
+    let size = Math.max(0.6, 1.9 - mag / 3) // Smaller base size for background stars
+    if (isInCurrentConstellation) {
+      size *= 8 // MUCH BIGGER stars in constellation lines!
+    }
+    
     const opacity = Math.min(1, Math.max(0.1, (6 - mag) / 6))
+    
+    // Dynamic slow sparkle - each star has unique frequency
+    const starSeed = ra * 73 + dec * 137 // Unique per star
+    const glowFreq = 0.15 + (starSeed % 10) * 0.025 // Slower: 0.15 to 0.4
+    const glowPhase = shimmerOffset.value * glowFreq + starSeed
+    const glowPulse = Math.sin(glowPhase) * 0.5 + 0.5 // 0 to 1
+    
+    // Size variation (70% to 100%) - visible sparkle
+    const sizeVariation = 0.7 + glowPulse * 0.3
+    // Brightness variation (40% to 100%) - visible sparkle
+    const brightnessVariation = 0.4 + glowPulse * 0.6
 
-    ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`
-    ctx.beginPath()
-    ctx.arc(projected.x, projected.y, size, 0, Math.PI * 2)
-    ctx.fill()
+    // Draw star
+    if (isInCurrentConstellation) {
+      // Star shape for constellation stars with dynamic sparkle
+      const colors = elementColors[currentConst]
+      
+      // Parse and adjust glow brightness
+      const colorMatch = colors.glow.match(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/)
+      const [_, r, g, b, a] = colorMatch
+      const adjustedGlow = `rgba(${r}, ${g}, ${b}, ${parseFloat(a) * brightnessVariation})`
+      const adjustedColor = `rgba(${r}, ${g}, ${b}, ${parseFloat(a) * 0.7 * brightnessVariation})`
+      
+      // Brighter stars get 8 rays, dimmer get 4 rays
+      const use8Ray = mag < 2.5
+      
+      // Draw star shape with dynamic glow
+      ctx.shadowBlur = 25 * brightnessVariation
+      ctx.shadowColor = adjustedGlow
+      ctx.fillStyle = adjustedColor
+      
+      if (use8Ray) {
+        drawStarShape8(ctx, projected.x, projected.y, size * 1.3 * sizeVariation, 0)
+      } else {
+        drawStarShape4(ctx, projected.x, projected.y, size * 1.3 * sizeVariation, 0)
+      }
+      
+      ctx.shadowBlur = 0
+    } else {
+      // Regular circles for other stars with subtle shimmer
+      const shimmer = 1 + Math.sin(shimmerOffset.value * 0.3 + ra) * 0.05
+      ctx.fillStyle = `rgba(255, 255, 255, ${opacity * shimmer})`
+      ctx.beginPath()
+      ctx.arc(projected.x, projected.y, size, 0, Math.PI * 2)
+      ctx.fill()
+    }
     
     if (props.viewMode === 'full' && mag < 2.0 && star.properties.name) {
       ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'
@@ -346,18 +525,17 @@ const draw = () => {
           ctx.lineWidth = 1.2
           ctx.shadowBlur = 0
         } else if (isCurrent) {
-          // Highlighted - use solid start color (no gradient to avoid issues)
+          // Highlighted - pale with soft glow
           const colors = elementColors[constellation.id]
-          ctx.strokeStyle = colors.start
-          ctx.lineWidth = 2.5
-          ctx.shadowColor = colors.start
+          ctx.strokeStyle = colors.color
+          ctx.lineWidth = 3
+          ctx.shadowColor = colors.glow
           ctx.shadowBlur = 8
         } else if (isOphiuchus) {
           ctx.strokeStyle = 'rgba(168, 85, 247, 0.4)'
           ctx.lineWidth = 1.2
           ctx.shadowBlur = 0
         } else {
-          // Bolder non-highlighted lines
           ctx.strokeStyle = 'rgba(148, 163, 184, 0.4)'
           ctx.lineWidth = 1.2
           ctx.shadowBlur = 0
@@ -519,13 +697,23 @@ const draw = () => {
   }
 }
 
+// Animation loop for shimmer
+let animationFrame = null
+const animate = () => {
+  shimmerOffset.value += 0.02
+  draw()
+  animationFrame = requestAnimationFrame(animate)
+}
+
 // Redraw on changes
 watch(() => props.date, () => draw(), { immediate: false })
 watch(() => props.location, () => draw(), { deep: true })
 watch(() => props.showEarth, () => draw())
 watch(() => props.showOphiuchus, () => draw())
 watch([stars, constellations], () => {
-  if (stars.value && constellations.value) draw()
+  if (stars.value && constellations.value) {
+    animate()
+  }
 })
 
 // Handle resize
