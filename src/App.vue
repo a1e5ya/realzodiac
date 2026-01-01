@@ -23,7 +23,7 @@
             Discover where the Sun actually was when you were born.
           </p>
           
-          <!-- Info Cards - Moved from infobox section -->
+          <!-- Info Cards -->
           <div class="grid md:grid-cols-2 gap-6 mb-8 max-w-3xl mx-auto">
             <div class="p-6 bg-red-900/20 rounded-lg border border-red-500/30">
               <h3 class="text-xl font-bold mb-3 text-red-300">❌ Astrology</h3>
@@ -81,7 +81,7 @@
           <span class="text-lg">{{ showControls ? '▼' : '▶' }}</span>
         </button>
         
-        <!-- Controls (collapsible on mobile) -->
+        <!-- Controls -->
         <div
           :class="[
             'bg-black/90 backdrop-blur-sm border border-blue-500/50 lg:rounded-lg p-3 text-xs',
@@ -90,7 +90,7 @@
           ]"
         >
           
-          <!-- View Mode - 3 MODES (not 2 modes + option) -->
+          <!-- View Mode -->
           <div class="mb-2 pb-2 border-b border-purple-500/30">
             <div class="text-[10px] text-purple-400 mb-1">View Mode:</div>
             <div class="flex flex-col gap-1">
@@ -109,7 +109,7 @@
             </div>
           </div>
           
-          <!-- Ophiuchus Toggle - Top Level Control -->
+          <!-- Ophiuchus Toggle -->
           <div class="mb-2 pb-2 border-b border-purple-500/30">
             <label class="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" v-model="showOphiuchus" class="w-3 h-3" />
@@ -135,7 +135,7 @@
               <div class="flex flex-col items-center">
                 <button @mousedown="startHold('day', 1)" @mouseup="stopHold" @mouseleave="stopHold"
                   class="w-10 h-6 bg-blue-700/30 hover:bg-blue-600/50 rounded-t flex items-center justify-center text-xs">▲</button>
-                <input type="text" inputmode="numeric" v-model.number="day" @input="handleDayChange"
+                <input type="text" inputmode="numeric" v-model="dayStr" @input="handleDayChange"
                   class="w-10 bg-gray-900/80 border-x border-blue-500/30 px-1 py-1 text-white text-center text-xs no-spin" placeholder="DD" />
                 <button @mousedown="startHold('day', -1)" @mouseup="stopHold" @mouseleave="stopHold"
                   class="w-10 h-6 bg-blue-700/30 hover:bg-blue-600/50 rounded-b flex items-center justify-center text-xs">▼</button>
@@ -146,7 +146,7 @@
               <div class="flex flex-col items-center">
                 <button @mousedown="startHold('month', 1)" @mouseup="stopHold" @mouseleave="stopHold"
                   class="w-10 h-6 bg-blue-700/30 hover:bg-blue-600/50 rounded-t flex items-center justify-center text-xs">▲</button>
-                <input type="text" inputmode="numeric" v-model.number="month" @input="handleMonthChange"
+                <input type="text" inputmode="numeric" v-model="monthStr" @input="handleMonthChange"
                   class="w-10 bg-gray-900/80 border-x border-blue-500/30 px-1 py-1 text-white text-center text-xs no-spin" placeholder="MM" />
                 <button @mousedown="startHold('month', -1)" @mouseup="stopHold" @mouseleave="stopHold"
                   class="w-10 h-6 bg-blue-700/30 hover:bg-blue-600/50 rounded-b flex items-center justify-center text-xs">▼</button>
@@ -157,7 +157,7 @@
               <div class="flex flex-col items-center">
                 <button @mousedown="startHold('year', 1)" @mouseup="stopHold" @mouseleave="stopHold"
                   class="w-16 h-6 bg-blue-700/30 hover:bg-blue-600/50 rounded-t flex items-center justify-center text-xs">▲</button>
-                <input type="text" inputmode="numeric" v-model.number="year" @input="handleYearChange"
+                <input type="text" inputmode="numeric" v-model="yearStr" @input="handleYearChange"
                   class="w-16 bg-gray-900/80 border-x border-blue-500/30 px-1 py-1 text-white text-center text-xs no-spin" placeholder="YYYY" />
                 <button @mousedown="startHold('year', -1)" @mouseup="stopHold" @mouseleave="stopHold"
                   class="w-16 h-6 bg-blue-700/30 hover:bg-blue-600/50 rounded-b flex items-center justify-center text-xs">▼</button>
@@ -172,7 +172,7 @@
               <div class="flex flex-col items-center">
                 <button @mousedown="startHold('hour', 1)" @mouseup="stopHold" @mouseleave="stopHold"
                   class="w-10 h-6 bg-blue-700/30 hover:bg-blue-600/50 rounded-t flex items-center justify-center text-xs">▲</button>
-                <input type="text" inputmode="numeric" v-model.number="hour" @input="handleHourChange"
+                <input type="text" inputmode="numeric" v-model="hourStr" @input="handleHourChange"
                   class="w-10 bg-gray-900/80 border-x border-blue-500/30 px-1 py-1 text-white text-center text-xs no-spin" placeholder="HH" />
                 <button @mousedown="startHold('hour', -1)" @mouseup="stopHold" @mouseleave="stopHold"
                   class="w-10 h-6 bg-blue-700/30 hover:bg-blue-600/50 rounded-b flex items-center justify-center text-xs">▼</button>
@@ -183,7 +183,7 @@
               <div class="flex flex-col items-center">
                 <button @mousedown="startHold('minute', 1)" @mouseup="stopHold" @mouseleave="stopHold"
                   class="w-10 h-6 bg-blue-700/30 hover:bg-blue-600/50 rounded-t flex items-center justify-center text-xs">▲</button>
-                <input type="text" inputmode="numeric" v-model.number="minute" @input="handleMinuteChange"
+                <input type="text" inputmode="numeric" v-model="minuteStr" @input="handleMinuteChange"
                   class="w-10 bg-gray-900/80 border-x border-blue-500/30 px-1 py-1 text-white text-center text-xs no-spin" placeholder="MM" />
                 <button @mousedown="startHold('minute', -1)" @mouseup="stopHold" @mouseleave="stopHold"
                   class="w-10 h-6 bg-blue-700/30 hover:bg-blue-600/50 rounded-b flex items-center justify-center text-xs">▼</button>
@@ -191,7 +191,7 @@
             </div>
           </div>
           
-          <!-- Location Picker (only in Location mode) -->
+          <!-- Location Picker -->
           <div v-if="viewMode === 'location'" class="mb-2">
             <div class="flex items-center justify-between mb-1">
               <div class="text-[10px] text-blue-400">Location:</div>
@@ -334,11 +334,36 @@ import LanguageSwitcher from './components/LanguageSwitcher.vue'
 import LocationPicker from './components/LocationPicker.vue'
 
 const selectedDate = ref(new Date())
-const day = ref(selectedDate.value.getDate())
-const month = ref(selectedDate.value.getMonth() + 1)
-const year = ref(selectedDate.value.getFullYear())
-const hour = ref(12)
-const minute = ref(0)
+
+// String refs for inputs (allow free typing)
+const dayStr = ref(selectedDate.value.getDate().toString())
+const monthStr = ref((selectedDate.value.getMonth() + 1).toString())
+const yearStr = ref(selectedDate.value.getFullYear().toString())
+const hourStr = ref('12')
+const minuteStr = ref('0')
+
+// Computed number values (only convert when valid)
+const day = computed(() => {
+  const val = parseInt(dayStr.value)
+  return isNaN(val) ? 1 : val
+})
+const month = computed(() => {
+  const val = parseInt(monthStr.value)
+  return isNaN(val) ? 1 : val
+})
+const year = computed(() => {
+  const val = parseInt(yearStr.value)
+  return isNaN(val) ? 2026 : val
+})
+const hour = computed(() => {
+  const val = parseInt(hourStr.value)
+  return isNaN(val) ? 0 : val
+})
+const minute = computed(() => {
+  const val = parseInt(minuteStr.value)
+  return isNaN(val) ? 0 : val
+})
+
 const starMapRef = ref(null)
 const location = ref({ lat: 60.1699, lon: 24.9384, name: 'Helsinki, Finland' })
 const showLocation = ref(false)
@@ -347,7 +372,6 @@ const showControls = ref(true)
 const viewMode = ref('constellations')
 const loadingLocation = ref(false)
 
-// Watch viewMode and auto-enable location when needed
 watch(viewMode, (newMode) => {
   showLocation.value = newMode === 'location'
 })
@@ -375,11 +399,11 @@ const stopHold = () => {
 const setNow = () => {
   const now = new Date()
   selectedDate.value = now
-  day.value = now.getDate()
-  month.value = now.getMonth() + 1
-  year.value = now.getFullYear()
-  hour.value = now.getHours()
-  minute.value = now.getMinutes()
+  dayStr.value = now.getDate().toString()
+  monthStr.value = (now.getMonth() + 1).toString()
+  yearStr.value = now.getFullYear().toString()
+  hourStr.value = now.getHours().toString()
+  minuteStr.value = now.getMinutes().toString()
 }
 
 const setCurrentLocation = () => {
@@ -407,84 +431,123 @@ const setCurrentLocation = () => {
   )
 }
 
-// Watch for date changes from StarMap and update individual fields
-watch(selectedDate, (newDate) => {
-  if (newDate.getDate() !== day.value) day.value = newDate.getDate()
-  if (newDate.getMonth() + 1 !== month.value) month.value = newDate.getMonth() + 1
-  if (newDate.getFullYear() !== year.value) year.value = newDate.getFullYear()
-  if (newDate.getHours() !== hour.value) hour.value = newDate.getHours()
-  if (newDate.getMinutes() !== minute.value) minute.value = newDate.getMinutes()
-})
-
+// Update date immediately when numbers change
 watch([day, month, year, hour, minute], () => {
   const newDate = new Date(year.value, month.value - 1, day.value, hour.value, minute.value)
-  if (!isNaN(newDate.getTime())) selectedDate.value = newDate
+  if (!isNaN(newDate.getTime())) {
+    selectedDate.value = newDate
+  }
+})
+
+// Update inputs when date changes from external sources (drag, slider, etc.)
+watch(selectedDate, (newDate) => {
+  // Only update if values actually changed (avoid circular updates)
+  if (newDate.getDate() !== day.value) dayStr.value = newDate.getDate().toString()
+  if (newDate.getMonth() + 1 !== month.value) monthStr.value = (newDate.getMonth() + 1).toString()
+  if (newDate.getFullYear() !== year.value) yearStr.value = newDate.getFullYear().toString()
+  if (newDate.getHours() !== hour.value) hourStr.value = newDate.getHours().toString()
+  if (newDate.getMinutes() !== minute.value) minuteStr.value = newDate.getMinutes().toString()
 })
 
 const incrementField = (field) => {
   switch(field) {
-    case 'minute': minute.value >= 59 ? (minute.value = 0, incrementField('hour')) : minute.value++; break
-    case 'hour': hour.value >= 23 ? (hour.value = 0, incrementField('day')) : hour.value++; break
+    case 'minute': 
+      if (minute.value >= 59) {
+        minuteStr.value = '0'
+        incrementField('hour')
+      } else {
+        minuteStr.value = (minute.value + 1).toString()
+      }
+      break
+    case 'hour': 
+      if (hour.value >= 23) {
+        hourStr.value = '0'
+        incrementField('day')
+      } else {
+        hourStr.value = (hour.value + 1).toString()
+      }
+      break
     case 'day': 
       const dim = new Date(year.value, month.value, 0).getDate()
-      day.value >= dim ? (day.value = 1, incrementField('month')) : day.value++
+      if (day.value >= dim) {
+        dayStr.value = '1'
+        incrementField('month')
+      } else {
+        dayStr.value = (day.value + 1).toString()
+      }
       break
-    case 'month': month.value >= 12 ? (month.value = 1, incrementField('year')) : month.value++; break
-    case 'year': if (year.value < 2100) year.value++; break
+    case 'month': 
+      if (month.value >= 12) {
+        monthStr.value = '1'
+        incrementField('year')
+      } else {
+        monthStr.value = (month.value + 1).toString()
+      }
+      break
+    case 'year': 
+      yearStr.value = (year.value + 1).toString()
+      break
   }
 }
 
 const decrementField = (field) => {
   switch(field) {
-    case 'minute': minute.value <= 0 ? (minute.value = 59, decrementField('hour')) : minute.value--; break
-    case 'hour': hour.value <= 0 ? (hour.value = 23, decrementField('day')) : hour.value--; break
+    case 'minute': 
+      if (minute.value <= 0) {
+        minuteStr.value = '59'
+        decrementField('hour')
+      } else {
+        minuteStr.value = (minute.value - 1).toString()
+      }
+      break
+    case 'hour': 
+      if (hour.value <= 0) {
+        hourStr.value = '23'
+        decrementField('day')
+      } else {
+        hourStr.value = (hour.value - 1).toString()
+      }
+      break
     case 'day':
       if (day.value <= 1) {
         decrementField('month')
-        day.value = new Date(year.value, month.value, 0).getDate()
-      } else day.value--
+        dayStr.value = new Date(year.value, month.value, 0).getDate().toString()
+      } else {
+        dayStr.value = (day.value - 1).toString()
+      }
       break
-    case 'month': month.value <= 1 ? (month.value = 12, decrementField('year')) : month.value--; break
-    case 'year': if (year.value > 1900) year.value--; break
+    case 'month': 
+      if (month.value <= 1) {
+        monthStr.value = '12'
+        decrementField('year')
+      } else {
+        monthStr.value = (month.value - 1).toString()
+      }
+      break
+    case 'year': 
+      yearStr.value = (year.value - 1).toString()
+      break
   }
 }
 
 const handleMinuteChange = (e) => {
-  let val = parseInt(e.target.value) || 0
-  if (val > 59) { minute.value = 0; incrementField('hour') }
-  else if (val < 0) { minute.value = 59; decrementField('hour') }
-  else minute.value = val
+  minuteStr.value = e.target.value
 }
 
 const handleHourChange = (e) => {
-  let val = parseInt(e.target.value) || 0
-  if (val > 23) { hour.value = 0; incrementField('day') }
-  else if (val < 0) { hour.value = 23; decrementField('day') }
-  else hour.value = val
+  hourStr.value = e.target.value
 }
 
 const handleDayChange = (e) => {
-  let val = parseInt(e.target.value) || 1
-  const dim = new Date(year.value, month.value, 0).getDate()
-  if (val > dim) { day.value = 1; incrementField('month') }
-  else if (val < 1) { decrementField('month'); day.value = new Date(year.value, month.value, 0).getDate() }
-  else day.value = val
+  dayStr.value = e.target.value
 }
 
 const handleMonthChange = (e) => {
-  let val = parseInt(e.target.value) || 1
-  if (val > 12) { month.value = 1; incrementField('year') }
-  else if (val < 1) { month.value = 12; decrementField('year') }
-  else month.value = val
-  const dim = new Date(year.value, month.value, 0).getDate()
-  if (day.value > dim) day.value = dim
+  monthStr.value = e.target.value
 }
 
 const handleYearChange = (e) => {
-  let val = parseInt(e.target.value) || 2000
-  if (val < 1900) val = 1900
-  if (val > 2100) val = 2100
-  year.value = val
+  yearStr.value = e.target.value
 }
 
 const formattedDate = computed(() => selectedDate.value.toLocaleDateString('en-US', { 
