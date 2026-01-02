@@ -1,24 +1,34 @@
 // src/composables/useAstronomy.js
-// All astronomical calculations in one place
+// REAL astronomical calculations using astronomy-engine
+// Install: npm install astronomy-engine
 
-import { computed } from 'vue'
+import * as Astronomy from 'astronomy-engine'
 
 export function useAstronomy() {
   
-  // Precession correction helper
+  // Precession correction helper (still needed for display)
   const getPrecessionOffset = (date) => {
     const dayOfYear = Math.floor((date - new Date(date.getFullYear(), 0, 0)) / 86400000)
     const yearsSinceJ2000 = (date.getFullYear() - 2000) + (dayOfYear / 365.25)
-    // Precession rate: 50.3 arcseconds per year = 0.01397 degrees/year
     return yearsSinceJ2000 * 0.01397
   }
   
-  // Sun position with precession
+  // Convert ecliptic longitude to RA for display
+  const eclipticToRA = (eclipticLon) => {
+    // Normalize to -180 to 180 range for display
+    let ra = eclipticLon
+    if (ra > 180) ra -= 360
+    if (ra < -180) ra += 360
+    return ra
+  }
+  
+  // Sun position - Use ecliptic for proper zodiac alignment
   const getSunRA = (date) => {
-    const dayOfYear = Math.floor((date - new Date(date.getFullYear(), 0, 0)) / 86400000)
-    const baseRA = ((dayOfYear - 80) * 0.9856) % 360
+    // Use astronomy-engine for accurate Sun ecliptic position
+    const pos = Astronomy.SunPosition(date)
+    // Apply precession correction for historical dates
     const precessionOffset = getPrecessionOffset(date)
-    let ra = (baseRA - precessionOffset) % 360
+    let ra = eclipticToRA(pos.elon) - precessionOffset
     
     if (ra > 180) ra -= 360
     if (ra < -180) ra += 360
@@ -66,7 +76,7 @@ export function useAstronomy() {
     return azimuth
   }
 
-  // Moon position with precession
+  // Moon - SIMPLE (works)
   const getMoonRA = (date) => {
     const knownNewMoon = new Date(2000, 0, 6, 18, 14, 0).getTime()
     const daysSinceKnownNewMoon = (date.getTime() - knownNewMoon) / 86400000
@@ -74,7 +84,6 @@ export function useAstronomy() {
     const daysSinceNewMoon = daysSinceKnownNewMoon % synodicMonth
     const moonOffset = daysSinceNewMoon * 12.19
     
-    // Use PRECESSED Sun position (to maintain Moon-Sun separation for phases)
     const sunRA = getSunRA(date)
     let moonRA = (sunRA + moonOffset) % 360
     
@@ -88,86 +97,91 @@ export function useAstronomy() {
     const knownNewMoon = new Date(2000, 0, 6, 18, 14, 0).getTime()
     const daysSinceKnownNewMoon = (date.getTime() - knownNewMoon) / 86400000
     const synodicMonth = 29.53058867
-    
-    // Handle negative days (ancient dates) properly
-    let daysSinceNewMoon = daysSinceKnownNewMoon % synodicMonth
-    if (daysSinceNewMoon < 0) daysSinceNewMoon += synodicMonth
-    
-    return daysSinceNewMoon / synodicMonth
+    // Handle negative values (dates before 2000) properly
+    let phase = (daysSinceKnownNewMoon % synodicMonth) / synodicMonth
+    if (phase < 0) phase += 1 // Fix negative modulo
+    return phase
   }
 
   const getMoonDec = (date) => {
-    const dayOfYear = Math.floor((date - new Date(date.getFullYear(), 0, 0)) / 86400000)
-    return 23.45 * Math.sin((360 / 365) * (dayOfYear - 81) * Math.PI / 180)
+    const knownNewMoon = new Date(2000, 0, 6, 18, 14, 0).getTime()
+    const daysSinceKnownNewMoon = (date.getTime() - knownNewMoon) / 86400000
+    const draconicMonth = 27.21222
+    const angle = (daysSinceKnownNewMoon / draconicMonth) * 2 * Math.PI
+    return 5.145 * Math.sin(angle)
   }
 
-  // Planet positions with precession
+  // Planets - REAL (astronomy-engine for accuracy)
   const getPlanetRA = (date, planet) => {
-    const J2000 = new Date('2000-01-01T12:00:00Z').getTime()
-    const daysSinceJ2000 = (date.getTime() - J2000) / 86400000
-    
-    const periods = {
-      mercury: 87.97,
-      venus: 224.70,
-      mars: 686.98,
-      jupiter: 4332.59,
-      saturn: 10759.22,
-      uranus: 30688.5,
-      neptune: 60182,
-      pluto: 90560,
-      chiron: 18513,
-      node: -6798
+    const bodyMap = {
+      mercury: 'Mercury',
+      venus: 'Venus',
+      mars: 'Mars',
+      jupiter: 'Jupiter',
+      saturn: 'Saturn',
+      uranus: 'Uranus',
+      neptune: 'Neptune',
+      pluto: 'Pluto'
     }
     
-    const L0 = {
-      mercury: 252.25,
-      venus: 181.98,
-      mars: 355.45,
-      jupiter: 34.35,
-      saturn: 50.08,
-      uranus: 314.05,
-      neptune: 304.35,
-      pluto: 238.93,
-      chiron: 120.5,
-      node: 180.0
+    if (planet === 'chiron') {
+      const J2000 = new Date('2000-01-01T12:00:00Z').getTime()
+      const daysSinceJ2000 = (date.getTime() - J2000) / 86400000
+      const L0 = 120.5
+      const n = 0.01945
+      const meanLongitude = (L0 + n * daysSinceJ2000) % 360
+      return eclipticToRA(meanLongitude)
     }
     
-    const period = periods[planet]
-    const meanAnomaly = (360 / period) * daysSinceJ2000
-    const meanLongitude = (L0[planet] + meanAnomaly) % 360
+    if (planet === 'node') {
+      const J2000 = new Date('2000-01-01T12:00:00Z').getTime()
+      const daysSinceJ2000 = (date.getTime() - J2000) / 86400000
+      const L0 = 125.04
+      const n = -0.05295
+      const longitude = (L0 + n * daysSinceJ2000 / 365.25) % 360
+      return eclipticToRA(longitude)
+    }
     
-    // Apply precession
-    const precessionOffset = getPrecessionOffset(date)
-    let ra = (meanLongitude - 180 - precessionOffset) % 360
+    const bodyName = bodyMap[planet]
+    if (!bodyName) return 0
     
-    if (ra > 180) ra -= 360
-    if (ra < -180) ra += 360
-    
-    return ra
+    // Use ecliptic coordinates (same system as Sun/zodiac)
+    const pos = Astronomy.GeoVector(bodyName, date, false)
+    const ecliptic = Astronomy.Ecliptic(pos)
+    return eclipticToRA(ecliptic.elon)
   }
 
   const getPlanetDec = (date, planet) => {
-    const dayOfYear = Math.floor((date - new Date(date.getFullYear(), 0, 0)) / 86400000)
-    
-    const inclinations = {
-      mercury: 7,
-      venus: 3.4,
-      mars: 1.9,
-      jupiter: 1.3,
-      saturn: 2.5,
-      uranus: 0.8,
-      neptune: 1.8,
-      pluto: 17,
-      chiron: 6.9,
-      node: 5.1
+    const bodyMap = {
+      mercury: 'Mercury',
+      venus: 'Venus',
+      mars: 'Mars',
+      jupiter: 'Jupiter',
+      saturn: 'Saturn',
+      uranus: 'Uranus',
+      neptune: 'Neptune',
+      pluto: 'Pluto'
     }
     
-    const incl = inclinations[planet] || 2
-    const variation = Math.sin((dayOfYear / 365) * Math.PI * 2) * incl
-    return variation
+    if (planet === 'chiron') {
+      const dayOfYear = Math.floor((date - new Date(date.getFullYear(), 0, 0)) / 86400000)
+      return Math.sin((dayOfYear / 365) * Math.PI * 2) * 6.9
+    }
+    
+    if (planet === 'node') {
+      return 0
+    }
+    
+    const bodyName = bodyMap[planet]
+    if (!bodyName) return 0
+    
+    // Use ecliptic latitude (small for planets on ecliptic plane)
+    const pos = Astronomy.GeoVector(bodyName, date, false)
+    const ecliptic = Astronomy.Ecliptic(pos)
+    return ecliptic.elat
   }
 
-  // Lilith (Black Moon) with precession
+  // Lilith (Black Moon) - approximation (not in astronomy-engine)
   const getLilithRA = (date) => {
     const J2000 = new Date('2000-01-01T12:00:00Z').getTime()
     const daysSinceJ2000 = (date.getTime() - J2000) / 86400000
@@ -177,14 +191,7 @@ export function useAstronomy() {
     const meanAnomaly = (360 / period) * daysSinceJ2000
     const meanLongitude = (L0 + meanAnomaly) % 360
     
-    // Apply precession
-    const precessionOffset = getPrecessionOffset(date)
-    let ra = (meanLongitude - 180 - precessionOffset) % 360
-    
-    if (ra > 180) ra -= 360
-    if (ra < -180) ra += 360
-    
-    return ra
+    return eclipticToRA(meanLongitude)
   }
 
   const getLilithDec = (date) => {
