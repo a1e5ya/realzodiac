@@ -54,7 +54,7 @@ import { ref, onMounted, watch, computed } from 'vue'
 import { useStarData } from '@/composables/useStarData'
 import { useAstronomy } from '@/composables/useAstronomy'
 import { useCanvasRendering } from '@/composables/useCanvasRendering'
-import { allCelestialBodies, zodiacIds, elementColors, constellationNames } from '@/data/celestialBodies'
+import { allCelestialBodies, zodiacIds, elementColors, constellationNames, constellationImageTransforms, constellationImageFiles } from '@/data/celestialBodies'
 
 const props = defineProps({
   date: {
@@ -69,17 +69,25 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
-  showEarth: {
+  showConstellationLines: {
     type: Boolean,
     default: true
+  },
+  showConstellationImages: {
+    type: Boolean,
+    default: false
+  },
+  showPlanets: {
+    type: Boolean,
+    default: false
+  },
+  showHorizon: {
+    type: Boolean,
+    default: false
   },
   showOphiuchus: {
     type: Boolean,
     default: false
-  },
-  viewMode: {
-    type: String,
-    default: 'constellations'
   }
 })
 
@@ -96,6 +104,9 @@ const renderer = useCanvasRendering()
 const canvas = ref(null)
 const canvasSize = ref({ width: 800, height: 800 })
 const shimmerOffset = ref(0)
+const constellationImages = ref({}) // Cache loaded images
+const earthImage = ref(null) // Earth texture
+const imagesLoading = ref(true)
 
 const zodiacCount = computed(() => {
   if (!constellations.value) return 0
@@ -167,6 +178,73 @@ const getConstellationStars = (constellationId) => {
   return selectedStars
 }
 
+// Load constellation images
+const loadConstellationImages = async () => {
+  imagesLoading.value = true
+  
+  // Load constellations
+  const constellationPromises = Object.entries(constellationImageFiles).map(([constId, filename]) => {
+    return new Promise((resolve) => {
+      const img = new Image()
+      img.onload = () => {
+        constellationImages.value[constId] = img
+        resolve()
+      }
+      img.onerror = () => {
+        console.warn(`Failed to load ${filename}`)
+        resolve()
+      }
+      img.src = `/assets/constellations/${filename}`
+    })
+  })
+  
+  // Load Earth
+  const earthPromise = new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => {
+      earthImage.value = img
+      resolve()
+    }
+    img.onerror = () => {
+      console.warn('Failed to load earth.')
+      resolve()
+    }
+    img.src = `/assets/earth.svg`
+  })
+  
+  await Promise.all([...constellationPromises, earthPromise])
+  imagesLoading.value = false
+  console.log('✅ Images loaded:', {
+    constellations: Object.keys(constellationImages.value),
+    earth: !!earthImage.value
+  })
+}
+
+// Get constellation center point
+const getConstellationCenter = (constellationId, sunRA, width, height) => {
+  const constellation = constellations.value?.features.find(c => c.id === constellationId)
+  if (!constellation) return null
+  
+  let totalRA = 0
+  let totalDec = 0
+  let count = 0
+  
+  constellation.geometry.coordinates.forEach(lineString => {
+    lineString.forEach(([ra, dec]) => {
+      totalRA += ra
+      totalDec += dec
+      count++
+    })
+  })
+  
+  if (count === 0) return null
+  
+  const centerRA = totalRA / count
+  const centerDec = totalDec / count
+  
+  return astronomy.project(centerRA, centerDec, sunRA, width, height)
+}
+
 const draw = () => {
   if (!canvas.value || !stars.value || !constellations.value) return
 
@@ -194,7 +272,7 @@ const draw = () => {
     const isInCurrentConstellation = constellationStarsCache.has(star)
     
     let size = Math.max(0.6, 1.9 - mag / 3)
-    if (isInCurrentConstellation) {
+    if (isInCurrentConstellation && props.showConstellationLines) {
       size *= 8
     }
     
@@ -208,7 +286,7 @@ const draw = () => {
     const sizeVariation = 0.7 + glowPulse * 0.3
     const brightnessVariation = 0.4 + glowPulse * 0.6
 
-    if (isInCurrentConstellation) {
+    if (isInCurrentConstellation && props.showConstellationLines) {
       const colors = elementColors[currentConst]
       const colorMatch = colors.glow.match(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/)
       const [_, r, g, b, a] = colorMatch
@@ -237,74 +315,113 @@ const draw = () => {
     }
   })
 
-  // Draw constellation lines
-  constellations.value.features
-    .filter(c => zodiacIds.includes(c.id))
-    .forEach(constellation => {
-      const isOphiuchus = constellation.id === 'Oph'
-      const isCurrent = constellation.id === currentConst
-      
-      constellation.geometry.coordinates.forEach(lineString => {
-        if (isOphiuchus && !props.showOphiuchus) {
-          ctx.strokeStyle = 'rgba(148, 163, 184, 0.3)'
-          ctx.lineWidth = 1.2
-          ctx.shadowBlur = 0
-        } else if (isCurrent) {
-          const colors = elementColors[constellation.id]
-          ctx.strokeStyle = colors.color
-          ctx.lineWidth = 3
-          ctx.shadowColor = colors.glow
-          ctx.shadowBlur = 8
-        } else if (isOphiuchus) {
-          ctx.strokeStyle = 'rgba(168, 85, 247, 0.4)'
-          ctx.lineWidth = 1.2
-          ctx.shadowBlur = 0
-        } else {
-          ctx.strokeStyle = 'rgba(148, 163, 184, 0.4)'
-          ctx.lineWidth = 1.2
-          ctx.shadowBlur = 0
-        }
-
-        ctx.beginPath()
+  // Draw constellation lines (only if enabled)
+  if (props.showConstellationLines) {
+    constellations.value.features
+      .filter(c => zodiacIds.includes(c.id))
+      .forEach(constellation => {
+        const isOphiuchus = constellation.id === 'Oph'
+        const isCurrent = constellation.id === currentConst
         
-        let prevPoint = null
-        lineString.forEach(([ra, dec]) => {
-          const projected = astronomy.project(ra, dec, sunRA, width, height)
-          
-          if (!projected.visible && prevPoint && !prevPoint.visible) {
-            prevPoint = projected
-            return
-          }
-          
-          if (prevPoint && Math.abs(projected.x - prevPoint.x) > width / 2) {
-            ctx.stroke()
-            ctx.beginPath()
-            ctx.moveTo(projected.x, projected.y)
-          } else if (!prevPoint) {
-            ctx.moveTo(projected.x, projected.y)
+        constellation.geometry.coordinates.forEach(lineString => {
+          if (isOphiuchus && !props.showOphiuchus) {
+            ctx.strokeStyle = 'rgba(148, 163, 184, 0.3)'
+            ctx.lineWidth = 1.2
+            ctx.shadowBlur = 0
+          } else if (isCurrent) {
+            const colors = elementColors[constellation.id]
+            ctx.strokeStyle = colors.color
+            ctx.lineWidth = 3
+            ctx.shadowColor = colors.glow
+            ctx.shadowBlur = 8
+          } else if (isOphiuchus) {
+            ctx.strokeStyle = 'rgba(168, 85, 247, 0.4)'
+            ctx.lineWidth = 1.2
+            ctx.shadowBlur = 0
           } else {
-            ctx.lineTo(projected.x, projected.y)
+            ctx.strokeStyle = 'rgba(148, 163, 184, 0.4)'
+            ctx.lineWidth = 1.2
+            ctx.shadowBlur = 0
           }
-          
-          prevPoint = projected
-        })
 
-        ctx.stroke()
-        ctx.shadowBlur = 0
+          ctx.beginPath()
+          
+          let prevPoint = null
+          lineString.forEach(([ra, dec]) => {
+            const projected = astronomy.project(ra, dec, sunRA, width, height)
+            
+            if (!projected.visible && prevPoint && !prevPoint.visible) {
+              prevPoint = projected
+              return
+            }
+            
+            if (prevPoint && Math.abs(projected.x - prevPoint.x) > width / 2) {
+              ctx.stroke()
+              ctx.beginPath()
+              ctx.moveTo(projected.x, projected.y)
+            } else if (!prevPoint) {
+              ctx.moveTo(projected.x, projected.y)
+            } else {
+              ctx.lineTo(projected.x, projected.y)
+            }
+            
+            prevPoint = projected
+          })
+
+          ctx.stroke()
+          ctx.shadowBlur = 0
+        })
       })
+  }
+  
+  // Draw constellation images (only if enabled and loaded)
+  if (props.showConstellationImages && !imagesLoading.value) {
+    zodiacIds.forEach(constId => {
+      const img = constellationImages.value[constId]
+      if (!img) return
+      
+      const isOphiuchus = constId === 'Oph'
+      
+      // Skip ophiuchus if not shown
+      if (isOphiuchus && !props.showOphiuchus) return
+      
+      const center = getConstellationCenter(constId, sunRA, width, height)
+      if (!center || !center.visible) return
+      
+      const transform = constellationImageTransforms[constId]
+      const baseSize = 200 // Base image size
+      const finalSize = baseSize * transform.scale
+      
+      ctx.save()
+      ctx.translate(center.x + transform.offsetX, center.y + transform.offsetY)
+      ctx.rotate((transform.rotation * Math.PI) / 180)
+      
+      // Same opacity for all, no glow
+      ctx.globalAlpha = 0.6
+      
+      ctx.drawImage(
+        img,
+        -finalSize / 2,
+        -finalSize / 2,
+        finalSize,
+        finalSize
+      )
+      
+      ctx.restore()
     })
+  }
   
   const centerX = width / 2
   const centerY = height / 2
   let earthData = null
 
-  // Draw Earth
-  if (props.showEarth) {
-    earthData = renderer.drawEarth(ctx, centerX, centerY, width, height, altitude, solarAzimuth.value)
+  // Draw Earth (only if horizon enabled)
+  if (props.showHorizon) {
+    earthData = renderer.drawEarth(ctx, centerX, centerY, width, height, altitude, solarAzimuth.value, earthImage.value)
   }
 
-  // Draw planets
-  if (props.viewMode === 'planets') {
+  // Draw planets (only if enabled)
+  if (props.showPlanets) {
     allCelestialBodies.forEach(body => {
       let ra, dec
       
@@ -362,7 +479,7 @@ const draw = () => {
     renderer.drawMoon(ctx, moonPos.x, moonPos.y, moonPhase)
   }
 
-  // Draw Sun
+  // Draw Sun (always visible)
   renderer.drawSun(ctx, centerX, centerY)
 }
 
@@ -375,9 +492,11 @@ const animate = () => {
 
 watch(() => props.date, () => draw(), { immediate: false })
 watch(() => props.location, () => draw(), { deep: true })
-watch(() => props.showEarth, () => draw())
+watch(() => props.showConstellationLines, () => draw())
+watch(() => props.showConstellationImages, () => draw())
+watch(() => props.showPlanets, () => draw())
+watch(() => props.showHorizon, () => draw())
 watch(() => props.showOphiuchus, () => draw())
-watch(() => props.viewMode, () => draw())
 
 watch([stars, constellations], () => {
   if (stars.value && constellations.value) {
@@ -447,6 +566,7 @@ const handleDragEnd = () => {
 }
 
 onMounted(() => {
+  loadConstellationImages()
   handleResize()
   window.addEventListener('resize', handleResize)
 })

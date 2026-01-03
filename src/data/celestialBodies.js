@@ -162,3 +162,38 @@ export const elementColors = {
   // Ophiuchus
   'Oph': { color: 'rgba(192, 132, 252, 0.3)', glow: 'rgba(192, 132, 252, 0.8)' }
 }
+
+// Constellation image transforms (adjust these to position/scale/rotate images)
+// offsetX/Y: pixels from center, scale: size multiplier, rotation: degrees
+export const constellationImageTransforms = {
+  'Ari': { offsetX: 0, offsetY: 0, scale: 1.0, rotation: 0 },
+  'Tau': { offsetX: 0, offsetY: 0, scale: 1.0, rotation: 0 },
+  'Gem': { offsetX: 0, offsetY: 0, scale: 1.0, rotation: 0 },
+  'Cnc': { offsetX: 0, offsetY: 0, scale: 1.0, rotation: 0 },
+  'Leo': { offsetX: 0, offsetY: 0, scale: 1.0, rotation: 0 },
+  'Vir': { offsetX: 300, offsetY: -0, scale: 1, rotation: 0 },
+  'Lib': { offsetX: 5, offsetY: 0, scale: 0.65, rotation: 0 },
+  'Sco': { offsetX: 0, offsetY: 0, scale: 1.0, rotation: 20 },
+  'Oph': { offsetX: 0, offsetY: 0, scale: 1.0, rotation: 0 },
+  'Sgr': { offsetX: 0, offsetY: 0, scale: 1.0, rotation: 0 },
+  'Cap': { offsetX: 0, offsetY: 0, scale: 1.0, rotation: 0 },
+  'Aqr': { offsetX: 0, offsetY: 0, scale: 1.0, rotation: 0 },
+  'Psc': { offsetX: 0, offsetY: 0, scale: 1.0, rotation: 0 }
+}
+
+// Map constellation IDs to image filenames
+export const constellationImageFiles = {
+  'Ari': 'aries.webp',
+  'Tau': 'taurus.webp',
+  'Gem': 'gemini.webp',
+  'Cnc': 'cancer.webp',
+  'Leo': 'leo.webp',
+  'Vir': 'virgo.webp',
+  'Lib': 'libra.webp',
+  'Sco': 'scorpio.webp',
+  'Oph': 'ophiuchus.webp',
+  'Sgr': 'sagittarius.webp',
+  'Cap': 'capricornus.webp',
+  'Aqr': 'aquarius.webp',
+  'Psc': 'pisces.webp'
+}

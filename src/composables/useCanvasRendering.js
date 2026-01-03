@@ -172,8 +172,8 @@ export function useCanvasRendering() {
     ctx.fill()
   }
 
-  // Draw Earth (horizon)
-  const drawEarth = (ctx, centerX, centerY, width, height, altitude, azimuth) => {
+  // Draw Earth (horizon) with optional texture image
+  const drawEarth = (ctx, centerX, centerY, width, height, altitude, azimuth, earthImage = null) => {
     const earthRadius = Math.min(width, height) * 3
     const verticalOffset = earthRadius * (1 + altitude / 90)
     const azimuthRad = (azimuth - 180) * Math.PI / 180
@@ -182,14 +182,47 @@ export function useCanvasRendering() {
     const earthX = centerX + horizontalOffset
     const earthY = centerY + verticalOffset
     
-    ctx.fillStyle = 'rgba(251, 191, 36, 0.5)'
+    // Calculate opacity based on sun altitude
+    // altitude > 0: sun above horizon, Earth invisible (opacity 0)
+    // altitude = 0: sun at horizon, Earth semi-visible (opacity 0.5)
+    // altitude < 0: sun below horizon, Earth visible (opacity 1)
+    let earthOpacity = 1
+    if (altitude > 0) {
+      earthOpacity = 0 // Sun above - no Earth
+    } else if (altitude > -10) {
+      // Transition zone: -10° to 0°
+      earthOpacity = Math.abs(altitude) / 10 // 0 to 1
+    }
+    
+    if (earthOpacity === 0) return null // Don't draw if invisible
+    
+    ctx.save()
+    ctx.globalAlpha = earthOpacity
+    
+    // Clip to circle
     ctx.beginPath()
     ctx.arc(earthX, earthY, earthRadius, 0, Math.PI * 2)
-    ctx.fill()
+    ctx.clip()
     
-    ctx.strokeStyle = 'rgba(251, 191, 36, 0.9)'
-    ctx.lineWidth = 3
-    ctx.stroke()
+    if (earthImage) {
+      // Draw earth texture image
+      const imgSize = earthRadius * 2
+      ctx.drawImage(
+        earthImage,
+        earthX - earthRadius,
+        earthY - earthRadius,
+        imgSize,
+        imgSize
+      )
+    } else {
+      // Fallback: gradient
+      ctx.fillStyle = 'rgba(251, 191, 36, 0.5)'
+      ctx.beginPath()
+      ctx.arc(earthX, earthY, earthRadius, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    
+    ctx.restore()
 
     return { x: earthX, y: earthY, radius: earthRadius }
   }

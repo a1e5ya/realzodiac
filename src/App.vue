@@ -90,21 +90,25 @@
           ]"
         >
           
-          <!-- View Mode -->
+          <!-- Display Options -->
           <div class="mb-2 pb-2 border-b border-purple-500/30">
-            <div class="text-[10px] text-purple-400 mb-1">View Mode:</div>
+            <div class="text-[10px] text-purple-400 mb-1">Display:</div>
             <div class="flex flex-col gap-1">
               <label class="flex items-center gap-1 cursor-pointer">
-                <input type="radio" value="constellations" v-model="viewMode" class="w-3 h-3" />
-                <span class="text-[10px]">Constellations</span>
+                <input type="checkbox" v-model="showConstellationLines" class="w-3 h-3" />
+                <span class="text-[10px]">Constellation Lines</span>
               </label>
               <label class="flex items-center gap-1 cursor-pointer">
-                <input type="radio" value="planets" v-model="viewMode" class="w-3 h-3" />
-                <span class="text-[10px]">Stars & Planets</span>
+                <input type="checkbox" v-model="showConstellationImages" class="w-3 h-3" />
+                <span class="text-[10px]">Constellation Art</span>
               </label>
               <label class="flex items-center gap-1 cursor-pointer">
-                <input type="radio" value="location" v-model="viewMode" class="w-3 h-3" />
-                <span class="text-[10px]">Location & Horizon</span>
+                <input type="checkbox" v-model="showPlanets" class="w-3 h-3" />
+                <span class="text-[10px]">Planets</span>
+              </label>
+              <label class="flex items-center gap-1 cursor-pointer">
+                <input type="checkbox" v-model="showHorizon" class="w-3 h-3" />
+                <span class="text-[10px]">Earth Horizon</span>
               </label>
             </div>
           </div>
@@ -191,8 +195,8 @@
             </div>
           </div>
           
-          <!-- Location Picker -->
-          <div v-if="viewMode === 'location'" class="mb-2">
+          <!-- Location Picker (show when horizon enabled) -->
+          <div v-if="showHorizon" class="mb-2">
             <div class="flex items-center justify-between mb-1">
               <div class="text-[10px] text-blue-400">Location:</div>
               <button @click="setCurrentLocation" :disabled="loadingLocation"
@@ -212,9 +216,11 @@
           v-model:date="selectedDate"
           :location="location"
           :show-stats="false"
-          :show-earth="showLocation"
+          :show-constellation-lines="showConstellationLines"
+          :show-constellation-images="showConstellationImages"
+          :show-planets="showPlanets"
+          :show-horizon="showHorizon"
           :show-ophiuchus="showOphiuchus"
-          :view-mode="viewMode"
         />
       </div>
       
@@ -229,7 +235,7 @@
             
             <div class="text-xs text-green-400 space-y-1 mb-6">
               <p>📅 {{ formattedDate }}</p>
-              <p v-if="showLocation">📍 {{ location.name }}</p>
+              <p v-if="showHorizon">📍 {{ location.name }}</p>
             </div>
             
             <div class="p-4 bg-green-900/20 rounded-lg border border-green-500/30">
@@ -353,6 +359,8 @@ const month = computed(() => {
 })
 const year = computed(() => {
   const val = parseInt(yearStr.value)
+  // Allow empty or partial input (like "-") without defaulting
+  if (yearStr.value === '' || yearStr.value === '-') return 2026
   return isNaN(val) ? 2026 : val
 })
 const hour = computed(() => {
@@ -366,15 +374,15 @@ const minute = computed(() => {
 
 const starMapRef = ref(null)
 const location = ref({ lat: 60.1699, lon: 24.9384, name: 'Helsinki, Finland' })
-const showLocation = ref(false)
 const showOphiuchus = ref(false)
 const showControls = ref(true)
-const viewMode = ref('constellations')
 const loadingLocation = ref(false)
 
-watch(viewMode, (newMode) => {
-  showLocation.value = newMode === 'location'
-})
+// Independent display toggles
+const showConstellationLines = ref(true)
+const showConstellationImages = ref(false)
+const showPlanets = ref(false)
+const showHorizon = ref(false)
 
 let holdInterval = null
 let holdTimeout = null
@@ -444,7 +452,7 @@ watch(selectedDate, (newDate) => {
   // Only update if values actually changed (avoid circular updates)
   if (newDate.getDate() !== day.value) dayStr.value = newDate.getDate().toString()
   if (newDate.getMonth() + 1 !== month.value) monthStr.value = (newDate.getMonth() + 1).toString()
-  if (newDate.getFullYear() !== year.value) yearStr.value = newDate.getFullYear().toString()
+  // Don't auto-update year to allow free typing including negative years
   if (newDate.getHours() !== hour.value) hourStr.value = newDate.getHours().toString()
   if (newDate.getMinutes() !== minute.value) minuteStr.value = newDate.getMinutes().toString()
 })
@@ -550,9 +558,18 @@ const handleYearChange = (e) => {
   yearStr.value = e.target.value
 }
 
-const formattedDate = computed(() => selectedDate.value.toLocaleDateString('en-US', { 
-  weekday: 'short', year: 'numeric', month: 'short', day: 'numeric'
-}))
+const formattedDate = computed(() => {
+  const date = selectedDate.value
+  const yr = date.getFullYear()
+  const isBC = yr < 0
+  const displayYear = isBC ? Math.abs(yr) : yr
+  
+  return date.toLocaleDateString('en-US', { 
+    weekday: 'short', 
+    month: 'short', 
+    day: 'numeric'
+  }) + `, ${displayYear}${isBC ? ' BC' : ''}`
+})
 
 const currentConstellationName = computed(() => starMapRef.value?.constellationName || null)
 
